@@ -26,9 +26,9 @@ public class OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
-    static final String OUT_OF_STOCK_MESSAGE = "Sorry, this product is out of stock.";
-    static final String PAYMENT_DECLINED_MESSAGE = "Payment was declined.";
-    static final String PAYMENT_UNAVAILABLE_MESSAGE = "Payment service is unavailable. Please try again.";
+    public static final String OUT_OF_STOCK_MESSAGE = "Sorry, this product is out of stock.";
+    public static final String PAYMENT_DECLINED_MESSAGE = "Payment was declined.";
+    public static final String PAYMENT_UNAVAILABLE_MESSAGE = "Payment service is unavailable. Please try again.";
 
     private final PaymentClient paymentClient;
     private final InventoryClient inventoryClient;
@@ -78,6 +78,10 @@ public class OrderService {
             result = chargeWithRetry(order, total);
         } catch (PaymentTimeoutException e) {
             return fail(order, PAYMENT_UNAVAILABLE_MESSAGE);
+        } catch (RuntimeException e) {
+            // Any other payment failure (for example a server error): no retry, fail cleanly
+            log.error("Payment service failed for order {}", order.getId(), e);
+            return fail(order, PAYMENT_UNAVAILABLE_MESSAGE);
         }
         if (!result.successful()) {
             return fail(order, PAYMENT_DECLINED_MESSAGE);
@@ -96,7 +100,7 @@ public class OrderService {
                 .orElseThrow(() -> new NotFoundException("Order " + id + " was not found."));
     }
 
-    static BigDecimal calculateTotal(BigDecimal unitPrice, int quantity) {
+    public static BigDecimal calculateTotal(BigDecimal unitPrice, int quantity) {
         return unitPrice.multiply(BigDecimal.valueOf(quantity));
     }
 

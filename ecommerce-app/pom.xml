@@ -6,6 +6,12 @@
     <version>1.0.0</version>
   </parent>
   <artifactId>ecommerce-app</artifactId>
+
+  <properties>
+    <!-- Tests with these tags are skipped on a normal build (mvn test) -->
+    <excluded.tags>resilience | integration</excluded.tags>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -36,6 +42,7 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
   <build>
     <finalName>ecommerce-app</finalName>
     <plugins>
@@ -43,6 +50,23 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <excludedGroups>${excluded.tags}</excludedGroups>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!-- mvn verify -P ci  runs ALL four suites (nothing is excluded) -->
+    <profile>
+      <id>ci</id>
+      <properties>
+        <excluded.tags></excluded.tags>
+      </properties>
+    </profile>
+  </profiles>
 </project>

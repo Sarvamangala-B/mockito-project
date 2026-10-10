@@ -25,5 +25,16 @@
       <artifactId>spring-data-commons</artifactId>
       <optional>true</optional>
     </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context-support</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <!-- Needed only so that the library's OWN tests can run (the JUnit engine) -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 </project>
