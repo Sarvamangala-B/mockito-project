@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resilient Shop</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--text:#1d2433;--muted:#667085;--line:#e3e8f0;--brand:#4f46e5;--ok:#0f8a4b;--okbg:#e3f6ec;--warn:#a15c00;--warnbg:#fff1d6;--bad:#b42318;--badbg:#fde8e6;--info:#3730a3;--infobg:#e8e7ff}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1420;--card:#171d2c;--text:#e8ecf5;--muted:#9aa5bd;--line:#273049;--brand:#8b85ff;--ok:#4ade80;--okbg:#12301f;--warn:#fbbf24;--warnbg:#33260a;--bad:#ff8a80;--badbg:#3a1613;--info:#c4c1ff;--infobg:#25244d}}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{background:#3730a3;color:#fff;padding:14px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+h1{margin:0;font-size:22px}h2{font-size:18px;margin:28px 0 12px}h3{margin:0 0 6px;font-size:17px}
+main{max-width:1000px;margin:0 auto;padding:8px 20px 32px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.price{font-size:22px;font-weight:700;margin-bottom:8px}
+.muted{color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.buy{display:flex;gap:8px;margin-top:12px}
+input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);width:100px}
+header input{color:#1d2433;background:#fff;width:70px}
+button{font:inherit;font-weight:600;padding:8px 16px;border:0;border-radius:8px;background:var(--brand);color:#fff;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:600}
+.ok,.CONFIRMED{color:var(--ok);background:var(--okbg)}
+.warn,.PENDING{color:var(--warn);background:var(--warnbg)}
+.bad,.FAILED{color:var(--bad);background:var(--badbg)}
+.info{color:var(--info);background:var(--infobg)}
+.banner{padding:12px 16px;border-radius:10px;margin-top:16px;font-weight:600}
+.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+footer{text-align:center;color:var(--muted);font-size:13px;padding:0 20px 24px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Resilient Shop</h1>
+  <label>Shopping as customer # <input id="cid" type="number" min="1" value="1"></label>
+</header>
+<main>
+  <div id="msg" class="banner" role="status" hidden></div>
+  <section><h2>Products</h2><div id="products" class="grid"><p class="muted">Loading…</p></div></section>
+  <section><h2>Track an order</h2>
+    <div class="card row"><input id="oid" type="number" min="1" placeholder="Order no."><button id="lookup">Check status</button><span id="order-result"></span></div>
+  </section>
+  <section><h2>Your account</h2><div id="customer" class="card"></div></section>
+</main>
+<footer>Demo page for the resilient testing project. It uses the REST API: /products, /orders and /customers.</footer>
+<script>
+const $ = s => document.querySelector(s);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => Number(n).toFixed(2);
+const cid = () => Number($('#cid').value) || 1;
+
+async function api(path, opts) {
+  try {
+    const r = await fetch(path, opts);
+    let d = null;
+    try { d = await r.json(); } catch (e) {}
+    return { status: r.status, data: d };
+  } catch (e) {
+    return { status: 0, data: { message: 'Cannot reach the server. Is the app running?' } };
+  }
+}
+function show(kind, text) { const m = $('#msg'); m.className = 'banner ' + kind; m.textContent = text; m.hidden = false; }
+function stockBadge(s) {
+  return s <= 0 ? '<span class="badge bad">Out of stock</span>'
+       : s <= 5 ? `<span class="badge warn">Only ${s} left</span>`
+       : `<span class="badge ok">${s} in stock</span>`;
+}
+
+async function loadProducts() {
+  const { status, data } = await api('/products');
+  if (status !== 200) { $('#products').innerHTML = '<p class="muted">Could not load products.</p>'; return; }
+  $('#products').innerHTML = data.map(p => `<article class="card"><h3>${esc(p.name)}</h3>
+    <div class="price">${money(p.price)}</div>${stockBadge(p.stock)}
+    <div class="buy"><input type="number" min="1" value="1" id="q${p.id}" aria-label="Quantity for ${esc(p.name)}">
+    <button data-id="${p.id}">Buy</button></div></article>`).join('') || '<p class="muted">No products yet.</p>';
+}
+
+$('#products').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-id]');
+  if (!b) return;
+  const id = Number(b.dataset.id), qty = Number($('#q' + id).value);
+  b.disabled = true; b.textContent = 'Processing…'; show('info', 'Placing your order…');
+  const { status, data } = await api('/orders', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customerId: cid(), productId: id, quantity: qty })
+  });
+  if (status === 201) show('ok', `Order #${data.orderId} confirmed. Thank you!`);
+  else if (status === 200) show('warn', `Order #${data.orderId} could not be completed: ${data.message}`);
+  else show('bad', (data && data.message) || 'Something went wrong.');
+  loadProducts(); loadCustomer();
+});
+
+$('#lookup').addEventListener('click', async () => {
+  const id = Number($('#oid').value), out = $('#order-result');
+  if (!id) { out.textContent = 'Enter an order number.'; return; }
+  const { status, data } = await api('/orders/' + id);
+  out.innerHTML = status === 200
+    ? `Order #${esc(data.orderId)} <span class="badge ${esc(data.status)}">${esc(data.status)}</span> ${esc(data.message || '')}`
+    : esc((data && data.message) || 'Not found.');
+});
+
+async function loadCustomer() {
+  const { status, data } = await api('/customers/' + cid());
+  const box = $('#customer');
+  if (status !== 200) { box.innerHTML = `<p class="muted">${esc((data && data.message) || 'Customer not found.')}</p>`; return; }
+  const rows = data.orders.map(o => `<tr><td>#${o.orderId}</td><td><span class="badge ${o.status}">${o.status}</span></td>
+    <td>${money(o.total)}</td><td>${new Date(o.createdAt).toLocaleString()}</td></tr>`).join('');
+  box.innerHTML = `<p><strong>${esc(data.name)}</strong> <span class="muted">${esc(data.email)}</span></p>` +
+    (rows ? `<div class="scroll"><table><thead><tr><th>Order</th><th>Status</th><th>Total</th><th>Placed</th></tr></thead><tbody>${rows}</tbody></table></div>`
+          : '<p class="muted">No orders yet.</p>');
+}
+$('#cid').addEventListener('change', loadCustomer);
+loadProducts(); loadCustomer();
+</script>
+</body>
+</html>
